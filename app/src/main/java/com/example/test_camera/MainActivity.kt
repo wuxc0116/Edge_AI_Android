@@ -25,6 +25,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
+import android.widget.LinearLayout
 import android.util.AttributeSet
 import android.view.View
 import androidx.core.app.ActivityCompat
@@ -120,6 +121,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var boundingBoxOverlay: BoundingBoxOverlay
 
     private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+
+    private var lastColorUpdateTime = 0L
+    private val colorUpdateInterval = 800L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -256,6 +260,7 @@ class MainActivity : ComponentActivity() {
     private fun displayResults(result: InferenceResult?) {
         resultTextView.visibility = View.GONE
         boundingBoxOverlay.visibility = View.GONE
+        val resultBox: LinearLayout = findViewById(R.id.resultBox)
 
         if (result == null) {
             resultTextView.text = "Error running inference"
@@ -267,20 +272,28 @@ class MainActivity : ComponentActivity() {
                 val normal_prob: Float? = result.classification["no anomaly"]
                 var classificationText: String?
                 if (anomaly_prob != null && normal_prob != null) {
-                    // 1. Set the main inference result
-                    if (anomaly_prob > 0.50) {
-                        classificationText = "Anomaly \n"
-                    } else {
-                        classificationText = "Normal \n"
+
+                    // Decide the text
+                    classificationText = if (anomaly_prob > 0.5f) "Anomaly \n" else "Normal \n"
+
+                    // --- UI Color Update With Delay ---
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastColorUpdateTime >= colorUpdateInterval) {
+                        if (anomaly_prob > 0.5f) {
+                            resultBox.setBackgroundColor(Color.RED)
+                            resultTextView.setTextColor(Color.WHITE)
+                        } else {
+                            resultBox.setBackgroundColor(Color.GREEN)
+                            resultTextView.setTextColor(Color.BLACK)
+                        }
+                        lastColorUpdateTime = currentTime
                     }
+                    // -----------------------------------
 
-                    // 2. Set the anomaly probability text
+                    // Probabilities
                     val anomalyProbText = "Anomaly prob: (${String.format("%.2f", anomaly_prob)}) \n"
-
-                    // 3. Set the normal probability text
-                    val normalProbText = "Normal prob: (${String.format("%.2f", normal_prob)}) \n"
-
-                    classificationText = classificationText + anomalyProbText + normalProbText
+                    val normalProbText  = "Normal prob: (${String.format("%.2f", normal_prob)}) \n"
+                    classificationText += anomalyProbText + normalProbText
                 } else {
                     classificationText = " "
                 }
